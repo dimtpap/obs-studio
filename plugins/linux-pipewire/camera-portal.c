@@ -276,7 +276,7 @@ static void stream_camera(struct camera_portal_source *camera_source)
 static void camera_format_list(struct camera_device *dev, obs_property_t *prop)
 {
 	struct param *p;
-	enum video_format last_format = VIDEO_FORMAT_NONE;
+	enum video_format last_format = UINT32_MAX;
 
 	obs_property_list_clear(prop);
 
@@ -300,7 +300,8 @@ static void camera_format_list(struct camera_device *dev, obs_property_t *prop)
 			format = SPA_VIDEO_FORMAT_ENCODED;
 		}
 
-		if (!obs_pw_video_format_from_spa_format(format, &obs_pw_video_format))
+		if (format != SPA_VIDEO_FORMAT_ENCODED &&
+		    !obs_pw_video_format_from_spa_format(format, &obs_pw_video_format))
 			continue;
 
 		if (obs_pw_video_format.video_format == last_format)
@@ -308,7 +309,13 @@ static void camera_format_list(struct camera_device *dev, obs_property_t *prop)
 
 		last_format = obs_pw_video_format.video_format;
 
-		obs_property_list_add_int(prop, obs_pw_video_format.pretty_name, format);
+		if (format != SPA_VIDEO_FORMAT_ENCODED) {
+			obs_property_list_add_int(prop, obs_pw_video_format.pretty_name, format);
+		} else if (media_subtype == SPA_MEDIA_SUBTYPE_mjpg) {
+			obs_property_list_add_int(prop, "MJPEG", SPA_MEDIA_SUBTYPE_mjpg);
+		} else if (media_subtype == SPA_MEDIA_SUBTYPE_h264) {
+			obs_property_list_add_int(prop, "H264", SPA_MEDIA_SUBTYPE_h264);
+		}
 	}
 }
 
@@ -519,7 +526,6 @@ static void resolution_list(struct camera_device *dev, uint32_t pixelformat, obs
 
 	spa_list_for_each(p, &dev->param_list, link)
 	{
-		struct obs_pw_video_format obs_pw_video_format;
 		struct spa_rectangle resolution;
 		uint32_t media_type, media_subtype, format;
 
@@ -538,10 +544,7 @@ static void resolution_list(struct camera_device *dev, uint32_t pixelformat, obs
 			format = SPA_VIDEO_FORMAT_ENCODED;
 		}
 
-		if (!obs_pw_video_format_from_spa_format(format, &obs_pw_video_format))
-			continue;
-
-		if (obs_pw_video_format.video_format != pixelformat)
+		if (format != pixelformat && media_subtype != pixelformat)
 			continue;
 
 		if (spa_pod_parse_object(p->param, SPA_TYPE_OBJECT_Format, NULL, SPA_FORMAT_VIDEO_size,
@@ -622,7 +625,6 @@ static void framerate_list(struct camera_device *dev, uint32_t pixelformat, cons
 	spa_list_for_each(p, &dev->param_list, link)
 	{
 		const struct spa_fraction *framerate_values;
-		struct obs_pw_video_format obs_pw_video_format;
 		enum spa_choice_type choice;
 		const struct spa_pod_prop *prop;
 		struct spa_rectangle this_resolution;
@@ -647,10 +649,7 @@ static void framerate_list(struct camera_device *dev, uint32_t pixelformat, cons
 			format = SPA_VIDEO_FORMAT_ENCODED;
 		}
 
-		if (!obs_pw_video_format_from_spa_format(format, &obs_pw_video_format))
-			continue;
-
-		if (obs_pw_video_format.video_format != pixelformat)
+		if (format != pixelformat && media_subtype != pixelformat)
 			continue;
 
 		if (spa_pod_parse_object(p->param, SPA_TYPE_OBJECT_Format, NULL, SPA_FORMAT_VIDEO_size,
